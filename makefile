@@ -1,8 +1,5 @@
 CSC = csc
-.SUFFIXES: .o .cpp
-
-.cpp.o:
-	$(CSC) -c $(.IMPSRC)
+.SUFFIXES: .cpp
 
 tgrep : main.cpp
 	$(CSC) $(.ALLSRC) -o $(.TARGET)

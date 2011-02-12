@@ -15,8 +15,7 @@ size_t read_len;
 char* curr;
 off_t buffer_start;
 
-//TODO: scan the file to detmine this:
-int start_day = 9;
+int start_day = 0;
 
 // In retrospect I should probally just invert all of these for clarity, at the
 // cost of typing a bit more.
@@ -172,8 +171,6 @@ int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
             if(second == -1)
                 return -1;
 
-            printf("date(%td): %d %d:%d:%d\n", (ptrdiff_t)start_offset, day, hour, minute, second);
-
             int seconds = (hour * 60 * 60) +
                           (minute * 60) +
                           (second);
@@ -196,6 +193,103 @@ int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
     return -1;
 }
 
+int start_time;
+int end_time;
+
+off_t start_offset;
+off_t end_offset;
+off_t semi_end;
+
+off_t file_len;
+
+// Size of a range where we can't have more then a single date.
+const size_t termination_range = 14;
+
+enum bisect_mask
+{
+    SEARCH_START,
+    SEARCH_END,
+    SEARCH_BOTH
+};
+
+void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
+{
+    // Probally get a bit better if we offset this a bit back but w/e
+    size_t range = (end - start);
+    off_t center = start + range/2;
+
+    //printf("Bisect %d %d-%d\n", (int)range, (int)start, (int)end);
+
+    if(range <= termination_range)
+    {
+        return;
+    }
+
+    fseeko(file, center, SEEK_SET);
+    fill_buffer();
+
+    off_t date_offset;
+    int time = find_next_date(&date_offset);
+
+    if(time == -1 || date_offset >= end)
+    {
+        // Ugh, just scanned the second half and found no dates!
+        bisect_range(start, center, mask);
+        return;
+    }
+
+
+    // Shouldn't actually need the mask test here.
+
+    if((mask == SEARCH_START || mask == SEARCH_BOTH) &&
+       time < start_time && date_offset > start_offset)
+        start_offset = date_offset;
+
+    if((mask == SEARCH_END || mask == SEARCH_BOTH) &&
+       time > end_time && date_offset < end_offset)
+        semi_end = end_offset = date_offset;
+
+    assert(end_offset != start_offset);
+
+    // This should be sufficient to ensure that all but one recursive call
+    // should be tail call optimizable, given a decent optimizer.
+
+    // TODO: Clean this up!
+
+    if(mask == SEARCH_START)
+    {
+        if(time >= start_time)
+            bisect_range(start, date_offset, mask);
+        else
+            bisect_range(date_offset, end, mask);
+    }
+    else if(mask == SEARCH_END)
+    {
+        if(time > end_time)
+            bisect_range(start, date_offset, mask);
+        else
+            bisect_range(date_offset, end, mask);
+        
+    }
+    else
+    {
+        if(time >= start_time && time <= end_time)
+        {
+            // We've just bisected the sequence, split calls.
+            bisect_range(start, date_offset, SEARCH_START);
+            bisect_range(date_offset, end), SEARCH_END;
+        }
+        else if (time < start)
+        {
+            bisect_range(date_offset, end, mask);
+        }
+        else //if (time > end)
+        {
+            bisect_range(start, date_offset, mask);
+        }
+    }
+}
+
 // In case we get the same time again, we will treat the timestamp as the first
 // logical instance of that time, this gives us more useful results then trying
 // both times and mixing up our results, It's unlikely that total number will be
@@ -207,9 +301,39 @@ int main(int argc, char** argv)
     const char* logfile = "data/small";
     file  = fopen(logfile, "rb");
 
-    fill_buffer();
+    // Should be 10 dates in this range.
+    start_time  = (10 * 60 * 60) + (52 * 60);
+    end_time = (20 * 60 * 60) + (7 * 60);
 
-    find_next_date();
+    fill_buffer();
+    find_next_date(NULL, &start_day);
+
+    fseek(file, 0, SEEK_END);
+    file_len = ftello(file);
+
+    start_offset = 0;
+    end_offset = file_len;
+
+    bisect_range(start_offset, end_offset);
+    
+    // We have the last date prior to our range, skip to the next date on the start.
+    fseeko(file, start_offset, SEEK_SET);
+    fgetc(file); // So we can move past this date;
+    fill_buffer();
+    
+    int date = find_next_date(&start_offset);
+
+    // Verify date. if invalid we have some weird condition. Error.
+
+    // Fixme! File may be very big, don't want to load the entire range in memory!
+    char* printbuf = (char*)malloc(end_offset-start_offset+1);
+    fseeko(file, start_offset, SEEK_SET);
+    fread(printbuf, 1, end_offset-start_offset, file);
+
+    printbuf[end_offset-start_offset] = '\0';
+    puts(printbuf);
+    free(printbuf);
+    
 
     fclose(file);
 }
