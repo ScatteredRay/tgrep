@@ -5,11 +5,20 @@
 // These are BIG log files! Thankfully you remembered to compile me 64-bit right?
 
 FILE* file;
-const size_t buffer_size = 10; // Small for testing purposes, enlarge for speed.
+// Small for testing purposes, enlarge for speed.
+// In all, the ideal size is going to be big enough so that on average we catch
+// a date in a single fseek, but not much more. The performance is highly data
+// dependant.
+const size_t buffer_size = 10;
 char buffer[buffer_size*2+1];
 size_t read_len;
 char* curr;
 off_t buffer_start;
+
+
+// In retrospect I should probally just invert all of these for clarity, at the
+// cost of typing a bit more.
+typedef bool ebool;
 
 void fill_buffer()
 {
@@ -40,11 +49,23 @@ void inc_buffer()
     
 }
 
-bool inc_curr()
+ebool inc_curr()
 {
     curr++;
-    if(curr == '\0')
+    if((curr - buffer) > buffer_size)
         inc_buffer();
+    return feof(file);
+}
+
+bool is_whitespace(char c)
+{
+    return (c == ' ' ||
+            c == '\t');
+}
+
+ebool consume_whitespace()
+{
+    while(is_whitespace(*curr) && !inc_curr());
     return feof(file);
 }
 
@@ -64,13 +85,96 @@ const char* month_codes[] =
     "Dec"
 };
 
-void find_next_date()
+unsigned int num_months = 12;
+
+int parse_month(const char* str)
+{
+    for(unsigned int i=0; i< num_months; i++)
+    {
+        if(strncmp(str, month_codes[i], 3) == 0)
+            return i+1;
+    }
+    return -1;
+}
+
+bool is_num(char c)
+{
+    return (c >= '0' && c <= '9');
+}
+
+int parse_int()
+{
+    size_t max_int_size = 2; // Big enough for days, hours, mins, and seconds
+    char int_buffer[max_int_size + 1];
+    int i=0;
+
+    while(i<max_int_size)
+    {
+        if(!is_num(*curr))
+        {
+            if(i == 0)
+                return -1;
+            else break;
+        }
+        int_buffer[i] = *curr;
+        if(inc_curr())
+            return -1;
+        i++;
+    }
+
+    int_buffer[i] = '\0';
+
+    return atoi(int_buffer);
+}
+
+ebool parse_char(char c)
+{
+    if(*curr == c)
+        return inc_curr();
+    else
+        return false;
+}
+
+int find_next_date()
 {
     // Let's use pretty strict date parsing, don't want to run into something else by accident.
     // Could check for beginning of line, But really it's your own goddamn fault if your logs
     // have extra dates.
 
-    
+    while(!feof(file))
+    {
+        if(parse_month(curr) > 0)
+        {
+            if(inc_curr() || inc_curr() || inc_curr()) // Bleh!
+                return -1;
+
+            if(consume_whitespace())
+                return -1;
+
+            int day = parse_int();
+            if(day == -1 || consume_whitespace())
+                return -1;
+
+            int hour = parse_int();
+            if(hour == -1 || parse_char(':'))
+                return -1;
+
+            int minute = parse_int();
+            if(minute == -1 || parse_char(':'))
+                return -1;
+
+            int second = parse_int();
+            if(second == -1)
+                return -1;
+
+            printf("date: %d %d:%d:%d\n", day, hour, minute, second);
+            return 0;
+            
+        }
+        inc_curr();
+        
+    }
+    return -1;
 }
 
 // In case we get the same time again, we will treat the timestamp as the first
