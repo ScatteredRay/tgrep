@@ -15,6 +15,8 @@ size_t read_len;
 char* curr;
 off_t buffer_start;
 
+//TODO: scan the file to detmine this:
+int start_day = 9;
 
 // In retrospect I should probally just invert all of these for clarity, at the
 // cost of typing a bit more.
@@ -46,7 +48,7 @@ void inc_buffer()
 
     read_len += fread(buffer+buffer_size, 1, buffer_size, file);
     buffer[read_len] = '\0';
-    
+
 }
 
 ebool inc_curr()
@@ -135,7 +137,7 @@ ebool parse_char(char c)
         return false;
 }
 
-int find_next_date()
+int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
 {
     // Let's use pretty strict date parsing, don't want to run into something else by accident.
     // Could check for beginning of line, But really it's your own goddamn fault if your logs
@@ -145,6 +147,9 @@ int find_next_date()
     {
         if(parse_month(curr) > 0)
         {
+            off_t start_offset = buffer_start +
+                (curr-buffer);
+
             if(inc_curr() || inc_curr() || inc_curr()) // Bleh!
                 return -1;
 
@@ -167,12 +172,26 @@ int find_next_date()
             if(second == -1)
                 return -1;
 
-            printf("date: %d %d:%d:%d\n", day, hour, minute, second);
-            return 0;
-            
+            printf("date(%td): %d %d:%d:%d\n", (ptrdiff_t)start_offset, day, hour, minute, second);
+
+            int seconds = (hour * 60 * 60) +
+                          (minute * 60) +
+                          (second);
+
+            // Be smarter about this, probally shouldn't assume that every other day is just the next, but it works for our needs.
+            if(day != start_day)
+                seconds += 24 * 60 * 60;
+
+            if(out_offset)
+                *out_offset = start_offset;
+
+            if(out_day)
+                *out_day = day;
+
+            return seconds;
         }
         inc_curr();
-        
+
     }
     return -1;
 }
