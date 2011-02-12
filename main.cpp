@@ -290,6 +290,25 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
     }
 }
 
+void print_buffer_extents(FILE* f, off_t start, off_t end)
+{
+    const size_t print_buffer_len = 1024;
+    char* printbuf = (char*)malloc(1024);
+    fseeko(file, start_offset, SEEK_SET);
+
+    end -= start;
+
+    while(end > 0)
+    {
+        int read_len = fread(printbuf, 1, ((end < print_buffer_len) ? end : print_buffer_len), file);
+        end -= read_len;
+        printbuf[read_len] = '\0';
+        fputs(printbuf, stdout);
+    }
+
+    free(printbuf);
+}
+
 // In case we get the same time again, we will treat the timestamp as the first
 // logical instance of that time, this gives us more useful results then trying
 // both times and mixing up our results, It's unlikely that total number will be
@@ -324,16 +343,8 @@ int main(int argc, char** argv)
     int date = find_next_date(&start_offset);
 
     // Verify date. if invalid we have some weird condition. Error.
-
-    // Fixme! File may be very big, don't want to load the entire range in memory!
-    char* printbuf = (char*)malloc(end_offset-start_offset+1);
-    fseeko(file, start_offset, SEEK_SET);
-    fread(printbuf, 1, end_offset-start_offset, file);
-
-    printbuf[end_offset-start_offset] = '\0';
-    puts(printbuf);
-    free(printbuf);
     
+    print_buffer_extents(file, start_offset, end_offset);
 
     fclose(file);
 }
