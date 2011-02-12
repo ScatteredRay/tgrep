@@ -136,6 +136,13 @@ ebool parse_char(char c)
         return false;
 }
 
+int make_seconds(int hour, int minute, int second)
+{
+    return (hour * 60 * 60) +
+           (minute * 60) +
+           (second);
+}
+
 int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
 {
     // Let's use pretty strict date parsing, don't want to run into something else by accident.
@@ -171,9 +178,7 @@ int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
             if(second == -1)
                 return -1;
 
-            int seconds = (hour * 60 * 60) +
-                          (minute * 60) +
-                          (second);
+            int seconds = make_seconds(hour, minute, second);
 
             // Be smarter about this, probally shouldn't assume that every other day is just the next, but it works for our needs.
             if(day != start_day)
@@ -309,20 +314,101 @@ void print_buffer_extents(FILE* f, off_t start, off_t end)
     free(printbuf);
 }
 
+// I'd like to be able to use the same date parsing code for the paremeters, but
+// Some aspects are differen't, we'd like command line parsing to be less strict,
+// but it also doesn't have to worry about parsing the date out of a stream,
+// we know the whole thing is there.
+
+int command_line_parse_int(const char** S)
+{
+    const char* s == *S;
+
+    while(is_num(*s))
+        s++;
+
+    int num_len = s-*S;
+
+    if(num_len == 0)
+        return -1;
+
+    char* buffer = (char*)malloc(num_len + 1);
+    memcpy(buffer, *S, num_len);
+    buffer[num_len] = '\0';
+
+    int ret = atoi(buffer);
+    free(buffer);
+
+    *S = s;
+
+    return ret;
+}
+
+bool command_line_parse_char(const char** S, char c)
+{
+    if(**S == c)
+    {
+        (*S)++;
+        return true;
+    }
+    else
+        return false;
+}
+
+// Probally will never actually get whitespace, the console is generally pretty
+// good about that, but just in case.
+void command_line_consume_whitespace(const char** S)
+{
+    while(is_whitespace(**S))
+        (*S)++;
+}
+
+int command_line_parse_date(const char* s)
+{
+
+    command_line_consume_whitespace(&s);
+    int hour = command_line_parse_int(&s);
+    if(hour == -1) return -1;
+
+    // From here on we don't want to fail out, partial times are OK!
+    if(!command_line_parse_char(&s, ':'))
+        goto finish_date;
+    
+    int minute = command_line_parse_int(&s);
+    if(minute == -1)
+    {
+        minute = 0;
+        goto finish_date;
+    }
+
+    if(command_line_parse_char(&s, ':'))
+        goto finish_date;
+
+    int second = command_line_parse_int(&s);
+    if(second == -1) second = 0;
+
+
+    // Before you talk crap about using goto, really try and tell me that
+    // this isn't a more elegant solution.
+finish_date:
+    make_seconds(hour, minute, second);
+    
+}
+
 // In case we get the same time again, we will treat the timestamp as the first
 // logical instance of that time, this gives us more useful results then trying
 // both times and mixing up our results, It's unlikely that total number will be
 // useful if we start counting two days. So: when we read in the time, normalize
 // it to the first instance of time, the second time should always be after that.
 
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
-    const char* logfile = "data/small";
-    file  = fopen(logfile, "rb");
 
     // Should be 10 dates in this range.
     start_time  = (10 * 60 * 60) + (52 * 60);
     end_time = (20 * 60 * 60) + (7 * 60);
+
+    const char* logfile = "data/small"; // = "/logs/haproxy.log";
+    file  = fopen(logfile, "rb");
 
     fill_buffer();
     find_next_date(NULL, &start_day);
