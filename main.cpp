@@ -463,6 +463,9 @@ int main(int argc, const char** argv)
 
         if(!file)
         {
+            if(strcmp(argv[i], "-") == 0)
+               continue;
+
             file = fopen(argv[i], "rb");
             if(!file)
             {
