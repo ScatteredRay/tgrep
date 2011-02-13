@@ -15,7 +15,7 @@ size_t read_len;
 char* curr;
 off_t buffer_start;
 
-int start_day = 0;
+int start_day = -1;
 
 // In retrospect I should probally just invert all of these for clarity, at the
 // cost of typing a bit more.
@@ -181,8 +181,8 @@ int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
             int seconds = make_seconds(hour, minute, second);
 
             // Be smarter about this, probally shouldn't assume that every other day is just the next, but it works for our needs.
-            if(day != start_day)
-                seconds += 24 * 60 * 60;
+            if(day != start_day && start_day != -1)
+                seconds += make_seconds(24, 0, 0);
 
             if(out_offset)
                 *out_offset = start_offset;
@@ -226,9 +226,7 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
     //printf("Bisect %d %d-%d\n", (int)range, (int)start, (int)end);
 
     if(range <= termination_range)
-    {
         return;
-    }
 
     fseeko(file, center, SEEK_SET);
     fill_buffer();
@@ -464,12 +462,6 @@ int main(int argc, const char** argv)
         return 0;
     }
 
-    if(end_time < start_time)
-    {
-        // Add a day!
-        end_time += 24 * 60 * 60;
-    }
-
     if(!file)
     {
         const char* logfile = "/logs/haproxy.log";
@@ -480,7 +472,20 @@ int main(int argc, const char** argv)
     }
 
     fill_buffer();
-    find_next_date(NULL, &start_day);
+    int first_time = find_next_date(NULL, &start_day);
+
+    // If the time given is more then half an hour before the first date, we probally want the one later on.
+
+    if(start_time < (first_time - 30*60))
+    {
+        start_time += make_seconds(24, 0, 0);
+    }
+
+    while(end_time < start_time)
+    {
+        // Add a day!
+        end_time += make_seconds(24, 0, 0);
+    }
 
     fseek(file, 0, SEEK_END);
     file_len = ftello(file);
@@ -490,14 +495,18 @@ int main(int argc, const char** argv)
 
     bisect_range(start_offset, end_offset);
     
-    // We have the last date prior to our range, skip to the next date on the start.
-    fseeko(file, start_offset, SEEK_SET);
-    fgetc(file); // So we can move past this date;
-    fill_buffer();
-    
-    int date = find_next_date(&start_offset);
+    // We have the last date prior to our range, skip to the next date on the start,
+    // unless it's the beginning of the file.
+    if(start_offset != 0)
+    {
+        fseeko(file, start_offset, SEEK_SET);
+        fgetc(file); // So we can move past this date;
+        fill_buffer();
 
-    // Verify date. if invalid we have some weird condition. Error.
+        int date = find_next_date(&start_offset);
+
+        // Verify date. if invalid we have some weird condition. Error.
+    }
     
     print_buffer_extents(file, start_offset, end_offset);
 
