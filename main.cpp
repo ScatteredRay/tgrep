@@ -4,12 +4,15 @@
 
 // These are BIG log files! Thankfully you remembered to compile me 64-bit right?
 
-FILE* file;
 // Small for testing purposes, enlarge for speed.
 // In all, the ideal size is going to be big enough so that on average we catch
 // a date in a single fseek, but not much more. The performance is highly data
 // dependant.
 const size_t buffer_size = 10;
+// Size of a range where we can't have more then a single date.
+const size_t termination_range = 14;
+
+FILE* file;
 char buffer[buffer_size*2+1];
 size_t read_len;
 char* curr;
@@ -216,9 +219,6 @@ off_t end_offset;
 off_t psuedo_end;
 
 off_t file_len;
-
-// Size of a range where we can't have more then a single date.
-const size_t termination_range = 14;
 
 enum bisect_mask
 {

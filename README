@@ -1,0 +1,34 @@
+tgrep
+--------------------
+
+    tgrep does a search over the contents of a log which is sorted in date order, and prints everything in a given date range.
+
+Usage:
+
+    tgrep <time range> [filename]
+    tgrep <start time> [end time] [filename]
+
+Dates are parsed in the form of <hour>[:<minute>[:<second>]]
+and time ranges are <start date>-<end date>
+
+Notes:
+
+Logs are assumed to be in-order, not span much more then 24-hours, and not contain stray dates.
+
+If a time is passed in without an end time, the end time is assumed to be anything within the range of what's specified, so: 12 => 12:00:00-12:59:58; 12:12 => 12:12:00-12:12:59; 12:12:12 => 12:12:12-12:12:12
+
+For start time if it's specified within thirty minutes of the first time in the log it's assumed to be on the first day in the file, but if it's before thirty minutes, it's assumed that you'd prefer the second instance of that time.
+
+End times are always assumed to be after start times, if they are before the start time, a day is added onto it so that it's put afterwards.
+
+Files can be parsed from mostly anywhere within the command string.
+
+If you have three days in the file some things are likely to go wrong.
+
+In order to handle files over 2GB the application needs to be compiled in 64-bit mode.
+
+It's been tested on Mac OS X using BSD make. It's written in pretty standard C++ so it should compile and run pretty much anywhere.
+
+A lot of stuff could be cleaned up or simplified, but I feel that leaving it as so may provide better insights.
+
+Tests.sh contains some of the tests I was using, but it just runs them, it doesn't properlly compare the output.
