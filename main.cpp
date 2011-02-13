@@ -282,11 +282,11 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
             bisect_range(start, date_offset, SEARCH_START);
             bisect_range(date_offset, end), SEARCH_END;
         }
-        else if (time < start)
+        else if (time < start_time)
         {
             bisect_range(date_offset, end, mask);
         }
-        else //if (time > end)
+        else //if (time > end_time)
         {
             bisect_range(start, date_offset, mask);
         }
