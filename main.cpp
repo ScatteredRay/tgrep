@@ -203,6 +203,7 @@ int end_time;
 
 off_t start_offset;
 off_t end_offset;
+off_t psuedo_end;
 
 off_t file_len;
 
@@ -233,11 +234,14 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
     off_t date_offset;
     int time = find_next_date(&date_offset);
 
-    if(center != start && (time == -1 || date_offset >= end))
+    if(time == -1 || date_offset >= end)
     {
-        // Ugh, just scanned the second half and found no dates!
-        bisect_range(start, center, mask);
-        return;
+        if(center != start)
+        {
+            psuedo_end = center;
+            bisect_range(start, center, mask);
+            return;
+        }
     }
 
 
@@ -252,7 +256,11 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
         end_offset = date_offset;
 
     if(range <= termination_range)
+    {
+        if(time < start_time)
+            start_offset = end;
         return;
+    }
 
     // This should be sufficient to ensure that all but one recursive call
     // should be tail call optimizable, given a decent optimizer.
@@ -491,9 +499,12 @@ int main(int argc, const char** argv)
     file_len = ftello(file);
 
     start_offset = 0;
-    end_offset = file_len;
+    psuedo_end = end_offset = file_len;
 
     bisect_range(start_offset, end_offset);
+
+    if(start_offset == psuedo_end)
+        start_offset = end_offset = psuedo_end;
 
     // We have the last date prior to our range, skip to the next date on the start,
     // unless it's the beginning of the file.
