@@ -12,7 +12,6 @@ echo --------------------------
 
 echo --------------------------
 
-# Failure!
 ./tgrep data/small 06:50-6:51
 #
 
@@ -28,7 +27,6 @@ echo --------------------------
 
 echo --------------------------
 
-# Failure!
 ./tgrep data/dateonly 06:50
 #
 
@@ -47,3 +45,8 @@ echo --------------------------
 #Feb  9 15:03:05 blah blah blah blah blah blah blah blah blah blah 
 #Feb  9 16:07:20 blah blah blah blah blah blah 
 
+echo --------------------------
+
+# Failure
+./tgrep data/finish-mid-date 18:00-19:00
+#

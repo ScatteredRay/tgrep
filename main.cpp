@@ -203,7 +203,6 @@ int end_time;
 
 off_t start_offset;
 off_t end_offset;
-off_t semi_end;
 
 off_t file_len;
 
@@ -226,7 +225,7 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
     //printf("Bisect %d %d-%d\n", (int)range, (int)start, (int)end);
 
     if(range <= termination_range)
-        return;
+        center = start;
 
     fseeko(file, center, SEEK_SET);
     fill_buffer();
@@ -234,7 +233,7 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
     off_t date_offset;
     int time = find_next_date(&date_offset);
 
-    if(time == -1 || date_offset >= end)
+    if(center != start && (time == -1 || date_offset >= end))
     {
         // Ugh, just scanned the second half and found no dates!
         bisect_range(start, center, mask);
@@ -250,9 +249,10 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
 
     if((mask == SEARCH_END || mask == SEARCH_BOTH) &&
        time > end_time && date_offset < end_offset)
-        semi_end = end_offset = date_offset;
+        end_offset = date_offset;
 
-    assert(end_offset != start_offset);
+    if(range <= termination_range)
+        return;
 
     // This should be sufficient to ensure that all but one recursive call
     // should be tail call optimizable, given a decent optimizer.
@@ -272,7 +272,7 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
             bisect_range(start, date_offset, mask);
         else
             bisect_range(date_offset, end, mask);
-        
+
     }
     else
     {
@@ -369,7 +369,7 @@ int make_seconds_both(int hour, int minute, int second, int* other)
     return make_seconds(hour,
                         ((minute == -1) ? 0 : minute),
                         ((second == -1) ?  0 : second));
-                              
+
 }
 
 int command_line_parse_date(const char** s, int* second_date = NULL)
@@ -382,7 +382,7 @@ int command_line_parse_date(const char** s, int* second_date = NULL)
     // From here on we don't want to fail out, partial times are OK!
     if(!command_line_parse_char(s, ':'))\
         return make_seconds_both(hour, -1, -1, second_date);
-    
+
     int minute = command_line_parse_int(s);
     if(minute == -1)
         return make_seconds_both(hour, -1, -1, second_date);
@@ -453,7 +453,7 @@ int main(int argc, const char** argv)
             }
         }
         // else // Should probally print out errors.
-        
+
     }
 
     if(start_time == -1)
@@ -466,7 +466,7 @@ int main(int argc, const char** argv)
     {
         const char* logfile = "/logs/haproxy.log";
         file  = fopen(logfile, "rb");
-    
+
         if(!file)
             printf("Error opening file: %s\n", logfile);
     }
@@ -494,7 +494,7 @@ int main(int argc, const char** argv)
     end_offset = file_len;
 
     bisect_range(start_offset, end_offset);
-    
+
     // We have the last date prior to our range, skip to the next date on the start,
     // unless it's the beginning of the file.
     if(start_offset != 0)
@@ -507,7 +507,7 @@ int main(int argc, const char** argv)
 
         // Verify date. if invalid we have some weird condition. Error.
     }
-    
+
     print_buffer_extents(file, start_offset, end_offset);
 
     fclose(file);
