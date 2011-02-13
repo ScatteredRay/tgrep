@@ -126,9 +126,12 @@ int parse_int()
         }
         int_buffer[i] = *curr;
         if(inc_curr())
-            return -1;
+            break;
         i++;
     }
+
+    if(i == 0)
+        return -1;
 
     int_buffer[i] = '\0';
 
