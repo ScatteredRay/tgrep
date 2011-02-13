@@ -321,7 +321,7 @@ void print_buffer_extents(FILE* f, off_t start, off_t end)
 
 int command_line_parse_int(const char** S)
 {
-    const char* s == *S;
+    const char* s = *S;
 
     while(is_num(*s))
         s++;
@@ -362,36 +362,54 @@ void command_line_consume_whitespace(const char** S)
         (*S)++;
 }
 
-int command_line_parse_date(const char* s)
+int make_seconds_both(int hour, int minute, int second, int* other)
+{
+    if(other)
+        *other = make_seconds(hour,
+                              ((minute == -1) ? 59 : minute),
+                              ((second == -1) ? 59 : second));
+    return make_seconds(hour,
+                        ((minute == -1) ? 0 : minute),
+                        ((second == -1) ?  0 : second));
+                              
+}
+
+int command_line_parse_date(const char** s, int* second_date = NULL)
 {
 
-    command_line_consume_whitespace(&s);
-    int hour = command_line_parse_int(&s);
+    command_line_consume_whitespace(s);
+    int hour = command_line_parse_int(s);
     if(hour == -1) return -1;
 
     // From here on we don't want to fail out, partial times are OK!
-    if(!command_line_parse_char(&s, ':'))
-        goto finish_date;
+    if(!command_line_parse_char(s, ':'))\
+        return make_seconds_both(hour, -1, -1, second_date);
     
-    int minute = command_line_parse_int(&s);
+    int minute = command_line_parse_int(s);
     if(minute == -1)
-    {
-        minute = 0;
-        goto finish_date;
-    }
+        return make_seconds_both(hour, -1, -1, second_date);
 
-    if(command_line_parse_char(&s, ':'))
-        goto finish_date;
+    if(!command_line_parse_char(s, ':'))
+        return make_seconds_both(hour, minute, -1, second_date);
 
-    int second = command_line_parse_int(&s);
-    if(second == -1) second = 0;
+    int second = command_line_parse_int(s);
+    if(second == -1)
+        return make_seconds_both(hour, minute, -1, second_date);
 
+    return make_seconds_both(hour, minute, second, second_date);
+}
 
-    // Before you talk crap about using goto, really try and tell me that
-    // this isn't a more elegant solution.
-finish_date:
-    make_seconds(hour, minute, second);
-    
+bool command_line_parse_dates(const char* s, int* first_date, int* second_date)
+{
+    *first_date = command_line_parse_date(&s, second_date);
+
+    if(*first_date == -1)
+        return false;
+
+    if(command_line_parse_char(&s, '-'))
+        *second_date = command_line_parse_date(&s);
+
+    return true;
 }
 
 // In case we get the same time again, we will treat the timestamp as the first
@@ -403,12 +421,63 @@ finish_date:
 int main(int argc, const char** argv)
 {
 
-    // Should be 10 dates in this range.
-    start_time  = (10 * 60 * 60) + (52 * 60);
-    end_time = (20 * 60 * 60) + (7 * 60);
+    start_time = -1;
+    end_time = -1;
 
-    const char* logfile = "data/small"; // = "/logs/haproxy.log";
-    file  = fopen(logfile, "rb");
+    file = NULL;
+
+    for(int i=1; i<argc; i++)
+    {
+        if(start_time == -1)
+        {
+            if(command_line_parse_dates(argv[i], &start_time, &end_time))
+                continue;
+        }
+        else
+        {
+            const char* s = argv[i];
+            int time  = command_line_parse_date(&s);
+            if(time != -1)
+            {
+                end_time = time;
+                continue;
+            }
+        }
+
+
+        if(!file)
+        {
+            file = fopen(argv[i], "rb");
+            if(!file)
+            {
+                printf("Error opening file: %s\n", argv[i]);
+                return 0;
+            }
+        }
+        // else // Should probally print out errors.
+        
+    }
+
+    if(start_time == -1)
+    {
+        printf("Usage:\n\ttgrep <time range> [filename]\n\ttgrep <start time> [end time] [filename]\n");
+        return 0;
+    }
+
+    if(end_time < start_time)
+    {
+        // Add a day!
+        end_time += 24 * 60 * 60;
+    }
+
+    if(!file)
+    {
+        const char* logfile = "/logs/haproxy.log";
+        file  = fopen(logfile, "rb");
+    
+        if(!file)
+            printf("Error opening file: %s\n", logfile);
+    }
 
     fill_buffer();
     find_next_date(NULL, &start_day);
