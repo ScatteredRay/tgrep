@@ -31,6 +31,8 @@ void fill_buffer()
 
 void inc_buffer()
 {
+    if(feof(file))
+        return;
     assert(read_len > buffer_size);
     read_len -= buffer_size;
     curr -= buffer_size;
@@ -50,12 +52,17 @@ void inc_buffer()
 
 }
 
+bool m_eof()
+{
+    return *curr == '\0' && feof(file);
+}
+
 ebool inc_curr()
 {
     curr++;
     if((curr - buffer) > buffer_size)
         inc_buffer();
-    return feof(file);
+    return m_eof();
 }
 
 bool is_whitespace(char c)
@@ -67,7 +74,7 @@ bool is_whitespace(char c)
 ebool consume_whitespace()
 {
     while(is_whitespace(*curr) && !inc_curr());
-    return feof(file);
+    return m_eof();
 }
 
 const char* month_codes[] =
@@ -149,7 +156,7 @@ int find_next_date(off_t* out_offset = NULL, int* out_day = NULL)
     // Could check for beginning of line, But really it's your own goddamn fault if your logs
     // have extra dates.
 
-    while(!feof(file))
+    while(!m_eof())
     {
         if(parse_month(curr) > 0)
         {
@@ -240,8 +247,8 @@ void bisect_range(off_t start, off_t end, bisect_mask mask = SEARCH_BOTH)
         {
             psuedo_end = center;
             bisect_range(start, center, mask);
-            return;
         }
+        return;
     }
 
 
@@ -504,7 +511,7 @@ int main(int argc, const char** argv)
     bisect_range(start_offset, end_offset);
 
     if(start_offset == psuedo_end)
-        start_offset = end_offset = psuedo_end;
+        start_offset = end_offset;
 
     // We have the last date prior to our range, skip to the next date on the start,
     // unless it's the beginning of the file.

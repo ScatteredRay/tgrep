@@ -33,6 +33,11 @@ echo --------------------------
 
 echo --------------------------
 
+./tgrep data/dateonly 07:50
+#
+
+echo --------------------------
+
 ./tgrep data/broken-date 17:10-21:00
 #Feb  9 17:10:31 blah blah blah blah blah blah blah blah 
 #Feb  9 1 blah blah blah blah blah blah blah blah blah blah blah blah 
